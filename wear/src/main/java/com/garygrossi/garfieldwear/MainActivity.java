@@ -1,9 +1,14 @@
 package com.garygrossi.garfieldwear;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.wearable.view.WatchViewStub;
 import android.util.Log;
 import android.widget.ImageView;
@@ -39,6 +44,10 @@ public class MainActivity extends Activity implements
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
+        MessageReceiver messageReceiver = new MessageReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
+
         /*
         final WatchViewStub stub = (WatchViewStub) findViewById(R.id.watch_view_stub);
         stub.setOnLayoutInflatedListener(new WatchViewStub.OnLayoutInflatedListener() {
@@ -56,6 +65,16 @@ public class MainActivity extends Activity implements
                 .build();
     }
 
+    // MessageReceiver that extracts message and set view
+    public class MessageReceiver extends BroadcastReceiver{
+        @Override
+        public void onReceive(Context context, Intent intent){
+            String message = intent.getStringExtra("message");
+            // Display
+            TextView textView = (TextView) findViewById(R.id.text);
+            textView.setText(message);
+        }
+    }
     @Override
     public void onConnected(Bundle bundle) {
         Wearable.DataApi.addListener(mGoogleApiClient, this);
@@ -84,6 +103,8 @@ public class MainActivity extends Activity implements
     public void onConnectionFailed(ConnectionResult connectionResult) {
         Log.d(TAG, "onConnectionFailed: " + connectionResult);
     }
+
+
 
     public Bitmap loadBitmapFromAsset(Asset asset) {
         if (asset == null) {

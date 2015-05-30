@@ -83,8 +83,16 @@ public class MainActivity extends Activity  implements
     }
 
     @Override
+    protected void onStart(){
+        super.onStart();
+        mGoogleApiClient.connect();
+    }
+
+    @Override
     public void onConnected(Bundle bundle) {
         Log.d(TAG, "onConnected: " + bundle);
+        String message = "Hello wearable";
+        new SendToDataLayerThread("/message_path", message, mGoogleApiClient).start();
         Wearable.DataApi.addListener(mGoogleApiClient, this);
     }
 
