@@ -7,10 +7,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.wearable.view.WatchViewStub;
 import android.util.Log;
+import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -20,10 +22,13 @@ import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.Wearable;
 
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends Activity implements
@@ -31,13 +36,11 @@ public class MainActivity extends Activity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
 
-    private static final String FRAME_KEY_1 = "com.garygrossi.key.frame1";
     private static final String TAG = "MainActivity_Wear";
     private static final int TIMEOUT_MS = 1000;
+    private static final String FRAME_KEY_1 = "com.garygrossi.key.frame1";
 
     private GoogleApiClient mGoogleApiClient;
-    private TextView mTextView;
-    public Bitmap bitmap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,18 +68,32 @@ public class MainActivity extends Activity implements
                 .build();
     }
 
+    @Override
+    protected void onStart(){
+        super.onStart();
+        mGoogleApiClient.connect();
+    }
+
     // MessageReceiver that extracts message and set view
     public class MessageReceiver extends BroadcastReceiver{
         @Override
         public void onReceive(Context context, Intent intent){
-            String message = intent.getStringExtra("message");
+            Log.d(TAG, "Message received");
+            //DataMap dataMap = intent.getParcelableExtra("bundle");
+            //Asset asset = dataMap.getAsset(FRAME_KEY_1);
+            Asset asset = intent.getParcelableExtra("asset");
+            //Bitmap bitmap = loadBitmapFromAsset(asset);
+
+            new BitmapLoaderTask().execute(asset);
             // Display
-            TextView textView = (TextView) findViewById(R.id.text);
-            textView.setText(message);
+            /*ImageView image = (ImageView) findViewById(R.id.imageView);
+            image.setImageBitmap(bitmap);*/
         }
     }
     @Override
+
     public void onConnected(Bundle bundle) {
+        Log.d(TAG, "onConnected: " + bundle);
         Wearable.DataApi.addListener(mGoogleApiClient, this);
     }
 
@@ -87,16 +104,6 @@ public class MainActivity extends Activity implements
 
     @Override
     public void onDataChanged(DataEventBuffer dataEventBuffer) {
-        for (DataEvent event : dataEventBuffer) {
-            if (event.getType() == DataEvent.TYPE_CHANGED &&
-                    event.getDataItem().getUri().getPath().equals("/frame1")) {
-                DataMapItem dataMapItem = DataMapItem.fromDataItem(event.getDataItem());
-                Asset imageAsset = dataMapItem.getDataMap().getAsset(FRAME_KEY_1);
-                bitmap = loadBitmapFromAsset(imageAsset);
-            }
-        }
-        ImageView image = (ImageView) findViewById(R.id.imageView);
-        image.setImageBitmap(bitmap);
     }
 
     @Override
@@ -106,7 +113,7 @@ public class MainActivity extends Activity implements
 
 
 
-    public Bitmap loadBitmapFromAsset(Asset asset) {
+    /*public Bitmap loadBitmapFromAsset(Asset asset) {
         if (asset == null) {
             throw new IllegalArgumentException("Asset must be non-null");
         }
@@ -126,5 +133,48 @@ public class MainActivity extends Activity implements
         }
         // decode the stream into a bitmap
         return BitmapFactory.decodeStream(assetInputStream);
+    }*/
+
+    // A background task that allows downloading of images from a network
+    class BitmapLoaderTask extends AsyncTask<Asset, Void, Bitmap>
+    {
+        protected void onPreExecute() {
+            // No pre execution tasks are needed
+        }
+
+        // Attempts to download an image from the given URL into to a bitmap
+        protected Bitmap doInBackground(Asset... assets) {
+            try {
+                Asset asset = assets[0];
+                if (asset == null) {
+                    throw new IllegalArgumentException("Asset must be non-null");
+                }
+                ConnectionResult result =
+                        mGoogleApiClient.blockingConnect(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                if (!result.isSuccess()) {
+                    return null;
+                }
+                // convert asset into a file descriptor and block until it's ready
+                InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
+                        mGoogleApiClient, asset).await().getInputStream();
+                mGoogleApiClient.disconnect();
+
+                if (assetInputStream == null) {
+                    Log.w(TAG, "Requested an unknown Asset.");
+                    return null;
+                }
+                // decode the stream into a bitmap
+                return BitmapFactory.decodeStream(assetInputStream);
+            } catch (Exception e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+
+        protected void onPostExecute(Bitmap result) {
+            ImageView image = (ImageView) findViewById(R.id.imageView);
+            image.setImageBitmap(result);
+
+        }
     }
 }

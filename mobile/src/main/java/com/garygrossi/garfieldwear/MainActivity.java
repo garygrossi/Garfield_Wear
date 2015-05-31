@@ -36,6 +36,7 @@ public class MainActivity extends Activity  implements
         DataApi.DataListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener{
 
     private static final String FRAME_KEY_1 = "com.garygrossi.key.frame1";
+    private static final String DATA_PATH = "/wearable_data";
     private static final String TAG = "MainActivity_Mobile";
 
     private GoogleApiClient mGoogleApiClient;
@@ -89,11 +90,16 @@ public class MainActivity extends Activity  implements
     }
 
     @Override
+    protected void onStop() {
+        if (null != mGoogleApiClient && mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
+        super.onStop();
+    }
+
+    @Override
     public void onConnected(Bundle bundle) {
         Log.d(TAG, "onConnected: " + bundle);
-        String message = "Hello wearable";
-        new SendToDataLayerThread("/message_path", message, mGoogleApiClient).start();
-        Wearable.DataApi.addListener(mGoogleApiClient, this);
     }
 
     @Override
@@ -141,20 +147,6 @@ public class MainActivity extends Activity  implements
         }
     }
 
-    private void dataMapMaker(){
-        TextView text = (TextView) findViewById(R.id.textView);
-        text.setText("Start dataMapMaker...");
-        PutDataMapRequest putDataMapReq = PutDataMapRequest.create("/frame1");
-        DataMap map = putDataMapReq.getDataMap();
-        map.putLong("time", new Date().getTime());
-        map.putAsset(FRAME_KEY_1, createAssetFromBitmap(comicCropLeft(storedBitmap)));
-        PutDataRequest putDataReq = putDataMapReq.asPutDataRequest();
-        PendingResult<DataApi.DataItemResult> pendingResult =
-                Wearable.DataApi.putDataItem(mGoogleApiClient, putDataReq);
-
-        text.setText("Pending result created.");
-    }
-
     public void getContent(View view) {
         TextView text = (TextView) findViewById(R.id.textView);
         text.setText("Attempting to send data....");
@@ -163,7 +155,16 @@ public class MainActivity extends Activity  implements
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
 
+    private void dataMapMaker(){
+        DataMap dataMap = new DataMap();
+        dataMap.putAsset(FRAME_KEY_1, createAssetFromBitmap(comicCropLeft(storedBitmap)));
+        dataMap.putLong("time", new Date().getTime());
+        new SendToDataLayerThread(DATA_PATH, dataMap, mGoogleApiClient).start();
+
+        TextView text = (TextView) findViewById(R.id.textView);
+        text.setText("Data sent.");
     }
 
     private static Asset createAssetFromBitmap(Bitmap bitmap) {
